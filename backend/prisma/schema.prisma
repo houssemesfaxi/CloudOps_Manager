@@ -1,6 +1,6 @@
 // Data model: docs/02-uml.md, section 2.
 // Member A: User, Project, ProjectMember, Environment.
-// Member B adds: Server, Application, Metric, AlertRule, Alert.
+// Member B: Server, Application, Metric, AlertRule, Alert.
 
 generator client {
   provider = "prisma-client-js"
@@ -44,8 +44,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  createdProjects Project[]       @relation("ProjectCreatedBy")
-  memberships     ProjectMember[]
+  createdProjects    Project[]       @relation("ProjectCreatedBy")
+  memberships        ProjectMember[]
+  acknowledgedAlerts Alert[]         @relation("AlertAcknowledgedBy")
 
   @@map("users")
 }
@@ -91,9 +92,155 @@ model Environment {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  servers      Server[]
+  applications Application[]
 
   @@unique([projectId, name])
   @@index([projectId])
   @@map("environments")
+}
+
+// ---------------------------------------------------------------------------
+// Member B: servers, applications, monitoring, alerts
+// ---------------------------------------------------------------------------
+
+enum ServerStatus {
+  ACTIVE
+  STOPPED
+  MAINTENANCE
+  OFFLINE
+}
+
+enum ApplicationStatus {
+  RUNNING
+  STOPPED
+  FAILED
+}
+
+enum MetricType {
+  CPU
+  RAM
+}
+
+enum AlertOperator {
+  GT // greater than
+  LT // less than
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model Server {
+  id            String       @id @default(uuid()) @db.Uuid
+  environmentId String       @db.Uuid
+  name          String
+  provider      String // AWS, Azure, GCP, OVH, on-premise...
+  region        String
+  cpuCores      Int
+  ramGb         Int
+  storageGb     Int
+  ipAddress     String?
+  status        ServerStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // An environment that still has servers cannot be deleted (409).
+  environment  Environment   @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  applications Application[]
+  metrics      Metric[]
+  alertRules   AlertRule[]
+  alerts       Alert[]
+
+  @@unique([environmentId, name])
+  @@index([environmentId])
+  @@index([status])
+  @@map("servers")
+}
+
+model Application {
+  id            String            @id @default(uuid()) @db.Uuid
+  serverId      String            @db.Uuid
+  environmentId String            @db.Uuid
+  name          String
+  version       String
+  status        ApplicationStatus @default(RUNNING)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Deleting a server deletes its applications.
+  server      Server      @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+
+  @@unique([serverId, name])
+  @@index([environmentId])
+  @@map("applications")
+}
+
+// One CPU/RAM measure of a server, written by the scheduler.
+model Metric {
+  id         String   @id @default(uuid()) @db.Uuid
+  serverId   String   @db.Uuid
+  cpuUsage   Float // percent, 0-100
+  ramUsage   Float // percent, 0-100
+  isUp       Boolean  @default(true)
+  recordedAt DateTime @default(now())
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  // Required by docs/01 (performance): charts read metrics by server and date.
+  @@index([serverId, recordedAt])
+  @@map("metrics")
+}
+
+// "Alert when CPU > 90 %". serverId null = rule applies to every server.
+model AlertRule {
+  id        String        @id @default(uuid()) @db.Uuid
+  serverId  String?       @db.Uuid
+  metric    MetricType
+  operator  AlertOperator
+  threshold Float
+  severity  AlertSeverity @default(WARNING)
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  server Server? @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  alerts Alert[]
+
+  @@index([serverId])
+  @@map("alert_rules")
+}
+
+// One incident raised by a rule. Kept as history even if the rule is deleted.
+model Alert {
+  id               String        @id @default(uuid()) @db.Uuid
+  ruleId           String?       @db.Uuid
+  serverId         String        @db.Uuid
+  severity         AlertSeverity
+  status           AlertStatus   @default(OPEN)
+  triggeredValue   Float
+  message          String
+  acknowledgedById String?       @db.Uuid
+  acknowledgedAt   DateTime?
+  createdAt        DateTime      @default(now())
+  resolvedAt       DateTime?
+
+  rule           AlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  server         Server     @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  acknowledgedBy User?      @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([serverId, createdAt])
+  @@index([ruleId])
+  @@map("alerts")
 }
