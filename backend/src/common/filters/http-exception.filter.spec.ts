@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { HttpExceptionFilter } from './http-exception.filter';
 
 describe('HttpExceptionFilter', () => {
@@ -42,6 +43,28 @@ describe('HttpExceptionFilter', () => {
         message: ['name should not be empty'],
       }),
     );
+  });
+
+  it('turns a Prisma unique error into 409', () => {
+    const err = new Prisma.PrismaClientKnownRequestError('Unique failed', {
+      code: 'P2002',
+      clientVersion: 'test',
+    });
+
+    filter.catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(409);
+  });
+
+  it('turns a Prisma not-found error into 404', () => {
+    const err = new Prisma.PrismaClientKnownRequestError('Not found', {
+      code: 'P2025',
+      clientVersion: 'test',
+    });
+
+    filter.catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(404);
   });
 
   it('hides details of unexpected errors', () => {
