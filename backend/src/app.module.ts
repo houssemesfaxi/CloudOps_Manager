@@ -7,8 +7,10 @@ import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HealthModule } from './health/health.module';
+import { EnvironmentsModule } from './environments/environments.module';
 import { MonitoringModule } from './monitoring/monitoring.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProjectsModule } from './projects/projects.module';
 import { ServersModule } from './servers/servers.module';
 import { UsersModule } from './users/users.module';
 
@@ -22,6 +24,8 @@ import { UsersModule } from './users/users.module';
     HealthModule,
     AuthModule,
     UsersModule,
+    ProjectsModule,
+    EnvironmentsModule,
     ServersModule,
     ApplicationsModule,
     MonitoringModule,
