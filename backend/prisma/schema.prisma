@@ -1,0 +1,246 @@
+// Data model: docs/02-uml.md, section 2.
+// Member A: User, Project, ProjectMember, Environment.
+// Member B: Server, Application, Metric, AlertRule, Alert.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DEVOPS
+  VIEWER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ProjectRole {
+  OWNER
+  MEMBER
+}
+
+enum EnvironmentType {
+  DEV
+  STAGING
+  PROD
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role     @default(VIEWER)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  createdProjects    Project[]       @relation("ProjectCreatedBy")
+  memberships        ProjectMember[]
+  acknowledgedAlerts Alert[]         @relation("AlertAcknowledgedBy")
+
+  @@map("users")
+}
+
+model Project {
+  id          String        @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  createdById String        @db.Uuid
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // A user who created projects cannot be deleted (409), only deactivated.
+  createdBy    User            @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  members      ProjectMember[]
+  environments Environment[]
+
+  @@index([createdById])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id          String      @id @default(uuid()) @db.Uuid
+  userId      String      @db.Uuid
+  projectId   String      @db.Uuid
+  projectRole ProjectRole @default(MEMBER)
+  joinedAt    DateTime    @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+  @@map("project_members")
+}
+
+model Environment {
+  id        String          @id @default(uuid()) @db.Uuid
+  projectId String          @db.Uuid
+  type      EnvironmentType
+  name      String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  servers      Server[]
+  applications Application[]
+
+  @@unique([projectId, name])
+  @@index([projectId])
+  @@map("environments")
+}
+
+// ---------------------------------------------------------------------------
+// Member B: servers, applications, monitoring, alerts
+// ---------------------------------------------------------------------------
+
+enum ServerStatus {
+  ACTIVE
+  STOPPED
+  MAINTENANCE
+  OFFLINE
+}
+
+enum ApplicationStatus {
+  RUNNING
+  STOPPED
+  FAILED
+}
+
+enum MetricType {
+  CPU
+  RAM
+}
+
+enum AlertOperator {
+  GT // greater than
+  LT // less than
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model Server {
+  id            String       @id @default(uuid()) @db.Uuid
+  environmentId String       @db.Uuid
+  name          String
+  provider      String // AWS, Azure, GCP, OVH, on-premise...
+  region        String
+  cpuCores      Int
+  ramGb         Int
+  storageGb     Int
+  ipAddress     String?
+  status        ServerStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  // An environment that still has servers cannot be deleted (409).
+  environment  Environment   @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+  applications Application[]
+  metrics      Metric[]
+  alertRules   AlertRule[]
+  alerts       Alert[]
+
+  @@unique([environmentId, name])
+  @@index([environmentId])
+  @@index([status])
+  @@map("servers")
+}
+
+model Application {
+  id            String            @id @default(uuid()) @db.Uuid
+  serverId      String            @db.Uuid
+  environmentId String            @db.Uuid
+  name          String
+  version       String
+  status        ApplicationStatus @default(RUNNING)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  // Deleting a server deletes its applications.
+  server      Server      @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  environment Environment @relation(fields: [environmentId], references: [id], onDelete: Restrict)
+
+  @@unique([serverId, name])
+  @@index([environmentId])
+  @@map("applications")
+}
+
+// One CPU/RAM measure of a server, written by the scheduler.
+model Metric {
+  id         String   @id @default(uuid()) @db.Uuid
+  serverId   String   @db.Uuid
+  cpuUsage   Float // percent, 0-100
+  ramUsage   Float // percent, 0-100
+  isUp       Boolean  @default(true)
+  recordedAt DateTime @default(now())
+
+  server Server @relation(fields: [serverId], references: [id], onDelete: Cascade)
+
+  // Required by docs/01 (performance): charts read metrics by server and date.
+  @@index([serverId, recordedAt])
+  @@map("metrics")
+}
+
+// "Alert when CPU > 90 %". serverId null = rule applies to every server.
+model AlertRule {
+  id        String        @id @default(uuid()) @db.Uuid
+  serverId  String?       @db.Uuid
+  metric    MetricType
+  operator  AlertOperator
+  threshold Float
+  severity  AlertSeverity @default(WARNING)
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  server Server? @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  alerts Alert[]
+
+  @@index([serverId])
+  @@map("alert_rules")
+}
+
+// One incident raised by a rule. Kept as history even if the rule is deleted.
+model Alert {
+  id               String        @id @default(uuid()) @db.Uuid
+  ruleId           String?       @db.Uuid
+  serverId         String        @db.Uuid
+  severity         AlertSeverity
+  status           AlertStatus   @default(OPEN)
+  triggeredValue   Float
+  message          String
+  acknowledgedById String?       @db.Uuid
+  acknowledgedAt   DateTime?
+  createdAt        DateTime      @default(now())
+  resolvedAt       DateTime?
+
+  rule           AlertRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  server         Server     @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  acknowledgedBy User?      @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([serverId, createdAt])
+  @@index([ruleId])
+  @@map("alerts")
+}

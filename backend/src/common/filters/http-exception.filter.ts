@@ -6,7 +6,42 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { Request, Response } from 'express';
+
+/** Prisma error codes: https://www.prisma.io/docs/orm/reference/error-reference */
+function mapPrismaError(e: Prisma.PrismaClientKnownRequestError): {
+  statusCode: number;
+  message: string;
+  error: string;
+} {
+  switch (e.code) {
+    case 'P2002': // unique constraint
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        message: 'Cette ressource existe déjà',
+        error: 'Conflict',
+      };
+    case 'P2003': // foreign key: still referenced by other rows
+      return {
+        statusCode: HttpStatus.CONFLICT,
+        message: 'Ressource liée à d’autres données',
+        error: 'Conflict',
+      };
+    case 'P2025': // record not found
+      return {
+        statusCode: HttpStatus.NOT_FOUND,
+        message: 'Ressource introuvable',
+        error: 'Not Found',
+      };
+    default:
+      return {
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: 'Internal server error',
+        error: 'Internal Server Error',
+      };
+  }
+}
 
 export interface ErrorResponse {
   statusCode: number;
@@ -44,6 +79,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
         const b = body as { message?: string | string[]; error?: string };
         message = b.message ?? exception.message;
         error = b.error ?? exception.name;
+      }
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
+      ({ statusCode, message, error } = mapPrismaError(exception));
+      if (statusCode === HttpStatus.INTERNAL_SERVER_ERROR) {
+        this.logger.error(exception.message);
       }
     } else {
       // Unexpected error: log it, but never send internal details to the client.
