@@ -3,19 +3,23 @@
 import Link from "next/link";
 import { Suspense, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import type { Role } from "@/types/api";
 import { SidebarNav, SidebarNavFallback } from "./sidebar-nav";
 
 /**
  * Page frame of the logged-in part: sidebar on the left (a drawer on phones),
  * top bar, and the page content.
  * userMenu: right side of the top bar (user name + logout, step 12).
+ * role: role of the logged-in user, hides the links they cannot use.
  */
 export function AppShell({
   children,
   userMenu,
+  role,
 }: {
   children: ReactNode;
   userMenu?: ReactNode;
+  role?: Role;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const close = () => setMenuOpen(false);
@@ -49,7 +53,7 @@ export function AppShell({
         <div className="flex-1 overflow-y-auto p-3">
           {/* usePathname can wait for dynamic routes (cacheComponents): Suspense keeps the shell static. */}
           <Suspense fallback={<SidebarNavFallback />}>
-            <SidebarNav onNavigate={close} />
+            <SidebarNav role={role} onNavigate={close} />
           </Suspense>
         </div>
       </aside>
