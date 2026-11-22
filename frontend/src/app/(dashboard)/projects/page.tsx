@@ -1,13 +1,7 @@
-import { ComingSoon } from "@/components/coming-soon";
+import { ProjectsList } from "@/components/projects/projects-list";
 
 export const metadata = { title: "Projets · CloudOps Manager" };
 
-export default function Page() {
-  return (
-    <ComingSoon
-      title="Projets"
-      description="Projets, équipes et environnements."
-      step={14}
-    />
-  );
+export default function ProjectsPage() {
+  return <ProjectsList />;
 }

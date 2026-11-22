@@ -38,6 +38,54 @@ export interface User {
   updatedAt: string;
 }
 
+export type ProjectStatus = "ACTIVE" | "ARCHIVED";
+export type ProjectRole = "OWNER" | "MEMBER";
+
+/** Short form of a user (project teams, GET /users/directory). */
+export interface UserSummary {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: Role;
+}
+
+/** One row of GET /projects. */
+export interface ProjectListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  status: ProjectStatus;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: UserSummary;
+  _count: { members: number; environments: number };
+}
+
+export interface ProjectMember {
+  id: string;
+  projectRole: ProjectRole;
+  joinedAt: string;
+  user: UserSummary;
+}
+
+export interface Environment {
+  id: string;
+  projectId: string;
+  type: EnvironmentType;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  _count: { servers: number; applications: number };
+}
+
+/** GET /projects/:id: the project with its team and environments. */
+export interface ProjectDetail extends Omit<ProjectListItem, "_count"> {
+  members: ProjectMember[];
+  environments: Environment[];
+}
+
 /** Environment as embedded in a server or an application. */
 export interface EnvironmentRef {
   id: string;
