@@ -105,6 +105,26 @@ describe('ServersService', () => {
     expect(prisma.server.update).not.toHaveBeenCalled();
   });
 
+  it('moves the applications with the server', async () => {
+    prisma.server.findUnique.mockResolvedValue({ id: 's-1' });
+    prisma.environment.findUnique.mockResolvedValue({ id: 'env-2' });
+    prisma.server.update.mockResolvedValue({ id: 's-1' });
+
+    await service.update('s-1', { environmentId: 'env-2', ramGb: 8 });
+
+    expect(prisma.server.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          ramGb: 8,
+          environment: { connect: { id: 'env-2' } },
+          applications: {
+            updateMany: { where: {}, data: { environmentId: 'env-2' } },
+          },
+        },
+      }),
+    );
+  });
+
   it('changes the status', async () => {
     prisma.server.findUnique.mockResolvedValue({ id: 's-1' });
     prisma.server.update.mockResolvedValue({

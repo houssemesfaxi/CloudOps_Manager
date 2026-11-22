@@ -71,12 +71,20 @@ export class ServersService {
 
   async update(id: string, dto: UpdateServerDto): Promise<ServerWithRelations> {
     await this.findOne(id);
-    if (dto.environmentId) {
-      await this.checkEnvironment(dto.environmentId);
+    const { environmentId, ...fields } = dto;
+    if (environmentId) {
+      await this.checkEnvironment(environmentId);
     }
     return this.prisma.server.update({
       where: { id },
-      data: dto,
+      data: {
+        ...fields,
+        // Moving a server also moves its applications to the new environment.
+        ...(environmentId && {
+          environment: { connect: { id: environmentId } },
+          applications: { updateMany: { where: {}, data: { environmentId } } },
+        }),
+      },
       include: serverInclude,
     });
   }
