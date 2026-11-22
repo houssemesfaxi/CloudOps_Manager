@@ -1,13 +1,7 @@
-import { ComingSoon } from "@/components/coming-soon";
+import { UsersList } from "@/components/users/users-list";
 
 export const metadata = { title: "Utilisateurs · CloudOps Manager" };
 
-export default function Page() {
-  return (
-    <ComingSoon
-      title="Utilisateurs"
-      description="Comptes et rôles (Admin uniquement)."
-      step={14}
-    />
-  );
+export default function UsersPage() {
+  return <UsersList />;
 }

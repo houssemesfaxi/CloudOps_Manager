@@ -15,3 +15,16 @@ export const publicUserSelect = {
 export type PublicUser = Prisma.UserGetPayload<{
   select: typeof publicUserSelect;
 }>;
+
+/** Short form of a user, shown in project teams and pickers. */
+export const userSummarySelect = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  role: true,
+} satisfies Prisma.UserSelect;
+
+export type UserSummary = Prisma.UserGetPayload<{
+  select: typeof userSummarySelect;
+}>;

@@ -5,6 +5,7 @@ import type {
   AlertStatus,
   ApplicationStatus,
   EnvironmentType,
+  ProjectStatus,
   ServerStatus,
 } from "@/types/api";
 
@@ -45,7 +46,8 @@ type Status =
   | ApplicationStatus
   | AlertStatus
   | AlertSeverity
-  | EnvironmentType;
+  | EnvironmentType
+  | ProjectStatus;
 
 /** French label and color of every status sent by the API. */
 const statuses: Record<Status, { label: string; tone: Tone }> = {
@@ -64,6 +66,8 @@ const statuses: Record<Status, { label: string; tone: Tone }> = {
   INFO: { label: "Info", tone: "info" },
   WARNING: { label: "Warning", tone: "warning" },
   CRITICAL: { label: "Critique", tone: "danger" },
+  // Projects (ACTIVE is shared with servers)
+  ARCHIVED: { label: "Archivé", tone: "neutral" },
   // Environments
   DEV: { label: "Dev", tone: "info" },
   STAGING: { label: "Staging", tone: "warning" },
