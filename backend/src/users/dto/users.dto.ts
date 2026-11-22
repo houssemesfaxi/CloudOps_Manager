@@ -13,6 +13,15 @@ import {
 } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
+/** GET /users/directory?search=ali */
+export class UserDirectoryQueryDto {
+  @ApiPropertyOptional({ description: 'Nom, prénom ou email' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  search?: string;
+}
+
 export const USER_SORT_FIELDS = ['createdAt', 'email', 'lastName'] as const;
 
 export class UsersQueryDto extends PaginationQueryDto {

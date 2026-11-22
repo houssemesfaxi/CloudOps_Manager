@@ -20,6 +20,7 @@ import {
   UpdateProfileDto,
   UpdateRoleDto,
   UpdateStatusDto,
+  UserDirectoryQueryDto,
   UsersQueryDto,
 } from './dto/users.dto';
 import { UsersService } from './users.service';
@@ -44,6 +45,14 @@ export class UsersController {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.usersService.changePassword(user.id, dto);
+  }
+
+  // --- Directory: pick a user to add to a project (Admin/DevOps) ---
+
+  @Get('directory')
+  @Roles(Role.ADMIN, Role.DEVOPS)
+  directory(@Query() query: UserDirectoryQueryDto) {
+    return this.usersService.directory(query.search);
   }
 
   // --- User management (Admin only) ---

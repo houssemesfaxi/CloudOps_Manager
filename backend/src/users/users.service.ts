@@ -16,7 +16,12 @@ import {
   UpdateProfileDto,
   UsersQueryDto,
 } from './dto/users.dto';
-import { PublicUser, publicUserSelect } from './user.select';
+import {
+  PublicUser,
+  publicUserSelect,
+  UserSummary,
+  userSummarySelect,
+} from './user.select';
 
 export const BCRYPT_ROUNDS = 10;
 
@@ -48,6 +53,25 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
     return paginate(rows, total, query);
+  }
+
+  /** Active users, short form, max 20 (to add a member to a project). */
+  directory(search?: string): Promise<UserSummary[]> {
+    return this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        ...(search && {
+          OR: [
+            { email: { contains: search, mode: 'insensitive' } },
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+          ],
+        }),
+      },
+      select: userSummarySelect,
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      take: 20,
+    });
   }
 
   async findOne(id: string): Promise<PublicUser> {
